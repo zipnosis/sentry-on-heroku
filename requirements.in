@@ -8,4 +8,5 @@ psycopg2
 sentry==7.7.0
 sentry-flowdock
 sentry-github
+sentry-slack
 uwsgi
