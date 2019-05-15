@@ -3,6 +3,7 @@
 import os.path
 
 import dj_database_url
+from urlparse import urlparse
 from sentry.conf.server import *
 
 CONF_ROOT = os.path.dirname(__file__)
@@ -24,11 +25,10 @@ SENTRY_USE_BIG_INTS = True
 # Note: This will be reported back to getsentry.com as the point of contact. See
 # the beacon documentation for more information. This **must** be a string.
 
-SENTRY_OPTIONS['system.admin-email'] = os.environ.get('SENTRY_ADMIN_EMAIL', '')
-
 # Instruct Sentry that this install intends to be run by a single organization
 # and thus various UI optimizations should be enabled.
 SENTRY_SINGLE_ORGANIZATION = True
+DEBUG = False
 
 # Should Sentry allow users to create new accounts?
 SENTRY_FEATURES['auth:register'] = False
@@ -39,20 +39,22 @@ SENTRY_FEATURES['auth:register'] = False
 
 # Generic Redis configuration used as defaults for various things including:
 # Buffers, Quotas, TSDB
+redis_url = urlparse(os.environ['REDIS_URL'])
 
-redis_url = urlparse.urlparse(os.environ['REDIS_URL'])
-SENTRY_OPTIONS['redis.clusters'] = {
-    'default': {
-        'hosts': {
-            0: {
-                'host': redis_url.hostname,
-                'port': redis_url.port,
-                'password': redis_url.password,
-                'db': 0,
-            }
-        }
-    }
-}
+SENTRY_OPTIONS.update({
+    'redis.clusters': {
+        'default': {
+            'hosts': {
+                0: {
+                    'host': redis_url.hostname,
+                    'password': redis_url.password,
+                    'port': redis_url.port,
+                    'db': 0,
+                },
+            },
+        },
+    },
+})
 
 #########
 # Cache #
@@ -82,7 +84,6 @@ SENTRY_CACHE = 'sentry.cache.redis.RedisCache'
 # information on configuring your queue broker and workers. Sentry relies
 # on a Python framework called Celery to manage queues.
 
-CELERY_ALWAYS_EAGER = False
 BROKER_URL = os.environ['REDIS_URL'] + '/0'
 
 ###############
@@ -140,7 +141,7 @@ SENTRY_FILESTORE_OPTIONS = {
 ##############
 
 # You MUST configure the absolute URI root for Sentry:
-SENTRY_OPTIONS['system.url-prefix'] = os.environ['SENTRY_URL_PREFIX']
+SENTRY_URL_PREFIX = os.environ['SENTRY_URL_PREFIX']
 
 SENTRY_WEB_HOST = '0.0.0.0'
 SENTRY_WEB_PORT = int(os.environ['PORT'])
@@ -153,26 +154,6 @@ SENTRY_WEB_OPTIONS = {
 ###############
 # Mail Server #
 ###############
-
-# For more information check Django's documentation:
-#  https://docs.djangoproject.com/en/1.3/topics/email/?from=olddocs#e-mail-backends
-
-SENTRY_OPTIONS['mail.backend'] = 'django.core.mail.backends.smtp.EmailBackend'
-
-if 'SENDGRID_USERNAME' in os.environ:
-    SENTRY_OPTIONS['mail.host'] = 'smtp.sendgrid.net'
-    SENTRY_OPTIONS['mail.username'] = os.environ['SENDGRID_USERNAME']
-    SENTRY_OPTIONS['mail.password'] = os.environ['SENDGRID_PASSWORD']
-SENTRY_OPTIONS['mail.port'] = 587
-SENTRY_OPTIONS['mail.use-tls'] = True
-
-# The email address to send on behalf of
-SENTRY_OPTIONS['mail.from'] = os.environ.get('SERVER_EMAIL', 'root@localhost')
-
-# If you're using mailgun for inbound mail, set your API key and configure a
-# route to forward to /api/hooks/mailgun/inbound/
-SENTRY_OPTIONS['mail.mailgun-api-key'] = os.environ.get('MAILGUN_API_KEY', '')
-
 ############
 # Security #
 ############
@@ -233,27 +214,20 @@ INSTALLED_APPS += ('django_bcrypt',)
 # The hash is also migrated when ``BCRYPT_ROUNDS`` changes.
 BCRYPT_MIGRATE = True
 
-###############
-# Social Auth #
-###############
+SENTRY_OPTIONS.update({
+    'system.admin-email': os.environ.get('SENTRY_ADMIN_EMAIL', ''),
+    'system.url-prefix': SENTRY_URL_PREFIX,
+    'mail.backend': 'django.core.mail.backends.smtp.EmailBackend',
+    'mail.host': 'smtp.sendgrid.net',
+    'mail.password': os.environ['SENDGRID_PASSWORD'],
+    'mail.username': os.environ['SENDGRID_USERNAME'],
+    'mail.port': 587,
+    'mail.use-tls': True,
+    'mail.from': 'sentry@zipnosis.com',
+})
 
-TWITTER_CONSUMER_KEY = os.environ.get('TWITTER_CONSUMER_KEY')
-TWITTER_CONSUMER_SECRET = os.environ.get('TWITTER_CONSUMER_SECRET')
 
-FACEBOOK_APP_ID = os.environ.get('FACEBOOK_APP_ID')
-FACEBOOK_API_SECRET = os.environ.get('FACEBOOK_API_SECRET')
-
-GOOGLE_OAUTH2_CLIENT_ID = os.environ.get('GOOGLE_OAUTH2_CLIENT_ID')
-GOOGLE_OAUTH2_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH2_CLIENT_SECRET')
-
-GITHUB_APP_ID = os.environ.get('GITHUB_APP_ID')
-GITHUB_API_SECRET = os.environ.get('GITHUB_API_SECRET')
-GITHUB_ORGANIZATION = os.environ.get('GITHUB_ORGANIZATION')
-GITHUB_EXTENDED_PERMISSIONS = ['repo']
-
-BITBUCKET_CONSUMER_KEY = os.environ.get('BITBUCKET_CONSUMER_KEY')
-BITBUCKET_CONSUMER_SECRET = os.environ.get('BITBUCKET_CONSUMER_SECRET')
-
+SENTRY_FEATURES['projects:servicehooks'] = True
 ########
 # etc. #
 ########
@@ -261,3 +235,8 @@ BITBUCKET_CONSUMER_SECRET = os.environ.get('BITBUCKET_CONSUMER_SECRET')
 # If this file ever becomes compromised, it's important to regenerate your SECRET_KEY
 # Changing this value will result in all current sessions being invalidated
 SENTRY_OPTIONS['system.secret-key'] = os.environ['SECRET_KEY']
+
+GITHUB_APP_ID = os.environ.get('GITHUB_APP_ID')
+GITHUB_API_SECRET = os.environ.get('GITHUB_API_SECRET')
+GITHUB_ORGANIZATION = os.environ.get('GITHUB_ORGANIZATION')
+GITHUB_EXTENDED_PERMISSIONS = ['repo']
